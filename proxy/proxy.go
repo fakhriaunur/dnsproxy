@@ -464,8 +464,8 @@ const defaultUDPBufSize = 2048
 // Resolve is the default resolving method used by the DNS proxy to query
 // upstream servers.
 func (p *Proxy) Resolve(d *DNSContext) (err error) {
-	if p.Config.EnableEDNSClientSubnet {
-		p.processECS(d)
+	if p.EnableEDNSClientSubnet {
+		d.processECS(p.EDNSAddr)
 	}
 
 	d.calcFlagsAndSize()
@@ -506,31 +506,30 @@ func (p *Proxy) Resolve(d *DNSContext) (err error) {
 	return err
 }
 
-// Set EDNS Client-Subnet data in DNS request
-func (p *Proxy) processECS(d *DNSContext) {
-	d.ecsReqIP = nil
-	d.ecsReqMask = uint8(0)
+// processECS adds EDNS Client-Subnet data into the request from d.
+func (d *DNSContext) processECS(cliIP net.IP) {
+	d.ECSReqIP, d.ECSReqMask, _ = parseECS(d.Req)
+	if d.ECSReqMask != 0 {
+		log.Debug("passing through ecs: %s/%d", d.ECSReqIP, d.ECSReqMask)
 
-	ip, mask, _ := parseECS(d.Req)
-	if mask == 0 {
-		// Set EDNS Client-Subnet data
-		var clientIP net.IP
-		if p.Config.EDNSAddr != nil {
-			clientIP = p.Config.EDNSAddr
-		} else {
-			clientIP, _ = netutil.IPAndPortFromAddr(d.Addr)
-		}
-
-		if clientIP != nil && isPublicIP(clientIP) {
-			ip, mask = setECS(d.Req, clientIP, 0)
-			log.Debug("Set ECS data: %s/%d", ip, mask)
-		}
-	} else {
-		log.Debug("Passing through ECS data: %s/%d", ip, mask)
+		return
 	}
 
-	d.ecsReqIP = ip
-	d.ecsReqMask = mask
+	// Set ECS.
+	d.ECSReqIP = nil
+
+	if cliIP == nil {
+		cliIP, _ = netutil.IPAndPortFromAddr(d.Addr)
+		if cliIP == nil {
+			return
+		}
+	}
+
+	if isPublicIP(cliIP) {
+		d.ECSReqIP, d.ECSReqMask = setECS(d.Req, cliIP, 0)
+
+		log.Debug("setting ecs: %s/%d", d.ECSReqIP, d.ECSReqMask)
+	}
 }
 
 // newDNSContext returns a new properly initialized *DNSContext.

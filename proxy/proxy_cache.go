@@ -15,8 +15,8 @@ func (p *Proxy) replyFromCache(d *DNSContext) (hit bool) {
 	var key []byte
 	if !p.Config.EnableEDNSClientSubnet {
 		ci, expired, key = p.cache.get(d.Req)
-	} else if d.ecsReqMask != 0 {
-		ci, expired, key = p.cache.getWithSubnet(d.Req, d.ecsReqIP, d.ecsReqMask)
+	} else if d.ECSReqMask != 0 {
+		ci, expired, key = p.cache.getWithSubnet(d.Req, d.ECSReqIP, d.ECSReqMask)
 		hitMsg = "serving response from subnet cache"
 	} else {
 		ci, expired, key = p.cache.get(d.Req)
@@ -37,10 +37,10 @@ func (p *Proxy) replyFromCache(d *DNSContext) (hit bool) {
 		minCtxClone := &DNSContext{
 			// It is only read inside the optimistic resolver.
 			CustomUpstreamConfig: d.CustomUpstreamConfig,
-			ecsReqMask:           d.ecsReqMask,
+			ECSReqMask:           d.ECSReqMask,
 		}
-		if ecsReqIP := d.ecsReqIP; ecsReqIP != nil {
-			minCtxClone.ecsReqIP = netutil.CloneIP(ecsReqIP)
+		if ecsReqIP := d.ECSReqIP; ecsReqIP != nil {
+			minCtxClone.ECSReqIP = netutil.CloneIP(ecsReqIP)
 		}
 		if d.Req != nil {
 			req := d.Req.Copy()
@@ -65,7 +65,7 @@ func (p *Proxy) cacheResp(d *DNSContext) {
 		m: res,
 		u: upsAddr,
 	}
-	if !p.Config.EnableEDNSClientSubnet {
+	if !p.EnableEDNSClientSubnet {
 		p.cache.set(item)
 
 		return
@@ -73,14 +73,14 @@ func (p *Proxy) cacheResp(d *DNSContext) {
 
 	ip, mask, scope := parseECS(res)
 	if ip != nil {
-		if ip.Equal(d.ecsReqIP) && mask == d.ecsReqMask {
+		if ip.Equal(d.ECSReqIP) && mask == d.ECSReqMask {
 			log.Debug("ECS option in response: %s/%d", ip, scope)
 			p.cache.setWithSubnet(item, ip, scope)
 		} else {
 			log.Debug("Invalid response from server: ECS data mismatch: %s/%d -- %s/%d",
-				d.ecsReqIP, d.ecsReqMask, ip, mask)
+				d.ECSReqIP, d.ECSReqMask, ip, mask)
 		}
-	} else if d.ecsReqIP != nil {
+	} else if d.ECSReqIP != nil {
 		// server doesn't support ECS - cache response for all subnets
 		p.cache.setWithSubnet(item, ip, scope)
 	} else {

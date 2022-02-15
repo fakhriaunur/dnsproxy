@@ -62,10 +62,11 @@ type DNSContext struct {
 	// instance.
 	RequestID uint64
 
-	// ecsReqIP is the ECS IP used in the request.
-	ecsReqIP net.IP
-	// ecsReqMask is the length of ECS mask used in the request.
-	ecsReqMask uint8
+	// ECSReqIP is the EDNS Client-Subnet IP address used in the request.
+	ECSReqIP net.IP
+	// ECSReqMask is the length of the EDNS Client-Subnet mask used in the
+	// request.
+	ECSReqMask uint8
 
 	// adBit is the authenticated data flag from the request.
 	adBit bool
