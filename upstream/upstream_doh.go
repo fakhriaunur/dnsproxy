@@ -11,7 +11,8 @@ import (
 
 	"github.com/AdguardTeam/golibs/errors"
 	"github.com/miekg/dns"
-	"golang.org/x/net/http2"
+	"github.com/lucas-clemente/quic-go"
+	"github.com/lucas-clemente/quic-go/http3"
 )
 
 // Values to configure HTTP and HTTP/2 transport.
@@ -162,36 +163,31 @@ func (p *dnsOverHTTPS) createClient() (*http.Client, error) {
 // createTransport initializes an HTTP transport that will be used specifically
 // for this DOH resolver. This HTTP transport ensures that the HTTP requests
 // will be sent exactly to the IP address got from the bootstrap resolver.
-func (p *dnsOverHTTPS) createTransport() (*http.Transport, error) {
+func (p *dnsOverHTTPS) createTransport() (*http3.RoundTripper, error) {
 	tlsConfig, dialContext, err := p.boot.get()
 	if err != nil {
 		return nil, fmt.Errorf("bootstrapping %s: %w", p.boot.URL, err)
 	}
 
-	transport := &http.Transport{
+	if dialContext != nil {}
+	
+	var qconf quic.Config
+	qconf.KeepAlive = true
+	qconf.MaxIncomingStreams = -1
+	transport := &http3.RoundTripper{
 		TLSClientConfig:    tlsConfig,
+		QuicConfig:         &qconf,
 		DisableCompression: true,
-		DialContext:        dialContext,
-		IdleConnTimeout:    transportDefaultIdleConnTimeout,
-		MaxConnsPerHost:    dohMaxConnsPerHost,
-		MaxIdleConns:       dohMaxIdleConns,
 		// Since we have a custom DialContext, we need to use this field to
 		// make golang http.Client attempt to use HTTP/2. Otherwise, it would
 		// only be used when negotiated on the TLS level.
-		ForceAttemptHTTP2: true,
 	}
 
 	// Explicitly configure transport to use HTTP/2.
 	//
 	// See https://github.com/AdguardTeam/dnsproxy/issues/11.
-	var transportH2 *http2.Transport
-	transportH2, err = http2.ConfigureTransports(transport)
-	if err != nil {
-		return nil, err
-	}
 
 	// Enable HTTP/2 pings on idle connections.
-	transportH2.ReadIdleTimeout = transportDefaultReadIdleTimeout
 
 	return transport, nil
 }
